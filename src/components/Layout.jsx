@@ -161,7 +161,7 @@ const Layout = () => {
           </div>
           <div className="mt-8 pt-8 border-t border-gray-200">
             <p className="text-center text-sm text-gray-500">
-              © 2024 TutorMatch. All rights reserved.
+              © 2025 TutorMatch. All rights reserved.
             </p>
           </div>
         </div>
