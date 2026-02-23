@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   BookOpen, 
   Plus, 
@@ -164,31 +164,24 @@ const TeacherDashboard = () => {
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  useEffect(() => {
-    fetchStats();
-    fetchCourses();
-    fetchRequests();
-    fetchSessions();
-    fetchPayments();
-    fetchMyReviews();
-  }, []);
-
-  useEffect(() => {
-    fetchCourses();
-  }, [currentPage, courseStatus]);
-
-  const fetchStats = async () => {
+  // Define all fetch functions first
+  const fetchStats = useCallback(async () => {
     try {
       const response = await apiClient.get('/teacher/stats');
       if (response.data.success) {
-        setStats(response.data.stats);
+        // Extract all stats except totalEarnings to avoid overwriting the calculated value
+        const { totalEarnings: _, ...otherStats } = response.data.stats;
+        setStats(prevStats => ({
+          ...prevStats,
+          ...otherStats
+        }));
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
-  };
+  }, [setStats]);
 
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -207,9 +200,9 @@ const TeacherDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, courseStatus, setCourses, setTotalPages, setLoading]);
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
       const response = await apiClient.get('/teacher/requests');
       if (response.data.success) {
@@ -218,21 +211,9 @@ const TeacherDashboard = () => {
     } catch (error) {
       console.error('Error fetching requests:', error);
     }
-  };
+  }, [setRequests]);
 
-  const fetchEnrollments = async (courseId) => {
-    try {
-      const response = await apiClient.get(`/teacher/courses/${courseId}/enrollments`);
-      if (response.data.success) {
-        // Handle enrollments data if needed
-        console.log('Enrollments fetched:', response.data.enrollments);
-      }
-    } catch (error) {
-      console.error('Error fetching enrollments:', error);
-    }
-  };
-
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       const response = await apiClient.get('/teacher/sessions');
       if (response.data.success) {
@@ -241,9 +222,9 @@ const TeacherDashboard = () => {
     } catch (error) {
       console.error('Error fetching sessions:', error);
     }
-  };
+  }, [setSessions]);
 
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     try {
       const response = await apiClient.get('/payment/teacher-payments');
       if (response.data.success) {
@@ -265,6 +246,12 @@ const TeacherDashboard = () => {
           thisMonth,
           lastMonth: 0 // Could be calculated if needed
         });
+
+        // Update the stats state with the calculated total earnings
+        setStats(prevStats => ({
+          ...prevStats,
+          totalEarnings
+        }));
       }
     } catch (error) {
       console.error('Error fetching payments:', error);
@@ -277,10 +264,16 @@ const TeacherDashboard = () => {
         thisMonth: 0,
         lastMonth: 0
       });
+      
+      // Also update stats with default earnings value
+      setStats(prevStats => ({
+        ...prevStats,
+        totalEarnings: 0
+      }));
     }
-  };
+  }, [setPayments, setPaymentEarnings, setStats]);
 
-  const fetchMyReviews = async (page = 1) => {
+  const fetchMyReviews = useCallback(async (page = 1) => {
     try {
       const response = await apiClient.get(`/reviews/teacher/${user?.id || user?._id}?page=${page}&limit=10`);
       if (response.data.success) {
@@ -291,6 +284,33 @@ const TeacherDashboard = () => {
       console.error('Error fetching reviews:', error);
       setReviews([]);
       setReviewsSummary({ average: 0, count: 0 });
+    }
+  }, [user, setReviews, setReviewsSummary]);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchStats();
+    fetchCourses();
+    fetchRequests();
+    fetchSessions();
+    fetchPayments();
+    fetchMyReviews();
+  }, [fetchStats, fetchCourses, fetchRequests, fetchSessions, fetchPayments, fetchMyReviews]);
+
+  // Pagination effect
+  useEffect(() => {
+    fetchCourses();
+  }, [currentPage, courseStatus, fetchCourses]);
+
+  const fetchEnrollments = async (courseId) => {
+    try {
+      const response = await apiClient.get(`/teacher/courses/${courseId}/enrollments`);
+      if (response.data.success) {
+        // Handle enrollments data if needed
+        console.log('Enrollments fetched:', response.data.enrollments);
+      }
+    } catch (error) {
+      console.error('Error fetching enrollments:', error);
     }
   };
 
@@ -2068,7 +2088,7 @@ const TeacherDashboard = () => {
                   {/* Pricing */}
                   <div className="border-t pt-6">
                     <h4 className="text-md font-medium text-gray-900 mb-4">Pricing & Structure</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">Price per Session ($)</label>
                         <input
@@ -2158,4 +2178,3 @@ const TeacherDashboard = () => {
 };
 
 export default TeacherDashboard;
-

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback} from 'react';
 import {
   BookOpen,
   Calendar,
@@ -26,7 +26,10 @@ import {
   Eye,
   Video,
   ExternalLink,
-  Copy
+  Copy,
+  Target,
+  List,
+  Paperclip
 } from 'lucide-react';
 import apiClient from '../utils/api.js';
 import Chat from '../components/Chat.jsx';
@@ -85,7 +88,7 @@ const StudentDashboard = () => {
     { name: 'Active Sessions', value: stats.upcomingSessions, icon: Calendar, color: 'text-blue-600' },
     { name: 'My Courses', value: stats.activeEnrollments, icon: BookOpen, color: 'text-green-600' },
     { name: 'Pending Requests', value: stats.pendingRequests, icon: MessageSquare, color: 'text-orange-600' },
-    { name: 'Total Spent', value: `$${stats.totalSpent}`, icon: DollarSign, color: 'text-purple-600' },
+    { name: 'Total Spent', value: `$${stats.totalSpent.toFixed(2)}`, icon: DollarSign, color: 'text-purple-600' },
     { name: 'Total Requests', value: stats.totalRequests, icon: TrendingUp, color: 'text-indigo-600' },
     { name: 'Completed Courses', value: stats.totalEnrollments - stats.activeEnrollments, icon: UserCheck, color: 'text-pink-600' }
   ];
@@ -99,32 +102,8 @@ const StudentDashboard = () => {
     'Primary', 'Secondary', 'Ordinary Level', 'Advance Level', 'Diploma Level', 'University Level'
   ];
 
-  useEffect(() => {
-    fetchStats();
-    fetchCourses();
-    fetchRequests();
-    fetchEnrollments();
-    fetchUpcomingSessions();
-    fetchPayments();
-    fetchPendingPayments();
-  }, []);
-
-  useEffect(() => {
-    fetchCourses();
-  }, [currentPage, searchTerm, filters]);
-
-  const fetchStats = async () => {
-    try {
-      const response = await apiClient.get('/student/stats');
-      if (response.data.success) {
-        setStats(response.data.stats);
-      }
-    } catch (error) {
-      console.error('Error fetching stats', error);
-    }
-  };
-
-  const fetchCourses = async () => {
+  // Define fetchCourses first before using it in useEffect
+  const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -146,6 +125,30 @@ const StudentDashboard = () => {
       console.error('Error fetching courses', error);
     } finally {
       setLoading(false);
+    }
+  }, [currentPage, searchTerm, filters, setLoading, setCourses, setTotalPages]);
+
+  useEffect(() => {
+    fetchStats();
+    fetchRequests();
+    fetchEnrollments();
+    fetchUpcomingSessions();
+    fetchPayments();
+    fetchPendingPayments();
+  }, []);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [currentPage, searchTerm, filters, fetchCourses]);
+
+  const fetchStats = async () => {
+    try {
+      const response = await apiClient.get('/student/stats');
+      if (response.data.success) {
+        setStats(response.data.stats);
+      }
+    } catch (error) {
+      console.error('Error fetching stats', error);
     }
   };
 
@@ -194,6 +197,17 @@ const StudentDashboard = () => {
       const historyResponse = await apiClient.get('/payment/my-payments');
       if (historyResponse.data.success) {
         setPaymentHistory(historyResponse.data.payments || []);
+        
+        // Calculate total spent from payment history
+        const totalSpent = historyResponse.data.payments.reduce((sum, payment) => {
+          return sum + (payment.amount || 0);
+        }, 0);
+        
+        // Update stats with calculated total spent
+        setStats(prevStats => ({
+          ...prevStats,
+          totalSpent
+        }));
       }
     } catch (error) {
       console.error('Error fetching payments', error);
@@ -276,7 +290,13 @@ const StudentDashboard = () => {
         setShowPaymentModal(false);
         fetchPayments();
         fetchEnrollments();
-        fetchStats();
+        
+        // Update totalSpent locally immediately
+        setStats(prevStats => ({
+          ...prevStats,
+          totalSpent: prevStats.totalSpent + selectedEnrollment.course.pricing.pricePerSession
+        }));
+        
         alert(response.data.payment?.paymentStatus === 'completed' ? 'Payment successful!' : 'Payment submitted and pending verification.');
       }
     } catch (error) {
@@ -913,7 +933,7 @@ const StudentDashboard = () => {
                   <div>
                     <h4 className="font-medium text-gray-900 mb-2">Course Details</h4>
                     <p className="text-sm text-gray-600 mb-3">{selectedCourse.description}</p>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                       <div>
                         <span className="font-medium">Subject:</span> {selectedCourse.subject}
                       </div>
@@ -927,6 +947,80 @@ const StudentDashboard = () => {
                         <span className="font-medium">Free Trial:</span> {selectedCourse.pricing.freeTrialDays} days
                       </div>
                     </div>
+
+                    {/* Course Content Section */}
+                    {selectedCourse.content && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-medium text-gray-900 mb-3">Course Content</h4>
+                        
+                        {/* Overview */}
+                        {selectedCourse.content.overview && (
+                          <div className="mb-4">
+                            <h5 className="font-medium text-gray-800 mb-2 flex items-center">
+                              <BookOpen className="h-4 w-4 mr-2" />
+                              Overview
+                            </h5>
+                            <p className="text-sm text-gray-600 pl-6">{selectedCourse.content.overview}</p>
+                          </div>
+                        )}
+
+                        {/* Objectives */}
+                        {selectedCourse.content.objectives && selectedCourse.content.objectives.length > 0 && (
+                          <div className="mb-4">
+                            <h5 className="font-medium text-gray-800 mb-2 flex items-center">
+                              <Target className="h-4 w-4 mr-2" />
+                              Learning Objectives
+                            </h5>
+                            <ul className="text-sm text-gray-600 pl-6 space-y-1">
+                              {selectedCourse.content.objectives.map((objective, index) => (
+                                <li key={index} className="flex items-start">
+                                  <CheckCircle className="h-3 w-3 text-green-500 mr-2 mt-1 flex-shrink-0" />
+                                  {objective}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Curriculum */}
+                        {selectedCourse.content.curriculum && selectedCourse.content.curriculum.length > 0 && (
+                          <div className="mb-4">
+                            <h5 className="font-medium text-gray-800 mb-2 flex items-center">
+                              <List className="h-4 w-4 mr-2" />
+                              Curriculum
+                            </h5>
+                            <ul className="text-sm text-gray-600 pl-6 space-y-1">
+                              {selectedCourse.content.curriculum.map((item, index) => (
+                                <li key={index} className="flex items-start">
+                                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mr-2 mt-0.5 flex-shrink-0">
+                                    {index + 1}
+                                  </span>
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Materials */}
+                        {selectedCourse.content.materials && selectedCourse.content.materials.length > 0 && (
+                          <div className="mb-4">
+                            <h5 className="font-medium text-gray-800 mb-2 flex items-center">
+                              <BookOpen className="h-4 w-4 mr-2" />
+                              Materials & Resources
+                            </h5>
+                            <ul className="text-sm text-gray-600 pl-6 space-y-1">
+                              {selectedCourse.content.materials.map((material, index) => (
+                                <li key={index} className="flex items-start">
+                                  <Paperclip className="h-3 w-3 text-gray-400 mr-2 mt-1 flex-shrink-0" />
+                                  {material}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   
                   <div>

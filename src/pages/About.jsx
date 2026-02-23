@@ -70,7 +70,7 @@ const About = () => {
       name: "Dr. Sarah Johnson",
       role: "Chief Executive Officer",
       bio: "Education PhD with 15+ years in educational technology and student success initiatives.",
-      image: "https://unsplash.com/photos/woman-in-red-cardigan-smiling-mpDV4xaFP8c"
+      image: "https://media.licdn.com/dms/image/v2/D4E03AQECbnhU_BrZ1A/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1710856699168?e=2147483647&v=beta&t=2UPtH28XiJA0lTBuA3g0EpKF68u_b4-prxE04_4eHY8"
     },
       {
       name: "Prof. Michael Chen",
